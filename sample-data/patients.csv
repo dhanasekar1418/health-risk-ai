@@ -1,0 +1,9 @@
+patient_id,name,age,heart_rate,spo2,temperature,activity_level,smoking,alcohol,bmi
+P001,Arjun Sharma,45,115,93,38.3,sedentary,regular,occasional,28.5
+P002,Priya Nair,32,72,98,36.8,active,no,no,22.1
+P003,Ravi Kumar,58,88,91,37.2,low,heavy,regular,33.0
+P004,Meena Devi,27,98,96,37.5,moderate,no,occasional,24.8
+P005,Suresh Pillai,63,130,89,39.1,sedentary,regular,heavy,36.2
+P006,Lakshmi Iyer,41,68,97,36.6,very_active,no,no,21.3
+P007,Karthik Raj,35,105,94,38.0,low,occasional,regular,27.4
+P008,Anitha Bose,50,82,95,37.1,moderate,no,no,25.9
