@@ -6,8 +6,11 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      '/analyze': 'http://localhost:5000',
-      '/health': 'http://localhost:5000',
+      '/analyze':  'http://localhost:5000',
+      '/sessions': 'http://localhost:5000',
+      '/patients': 'http://localhost:5000',
+      '/stats':    'http://localhost:5000',
+      '/health':   'http://localhost:5000',
     }
   }
 })
