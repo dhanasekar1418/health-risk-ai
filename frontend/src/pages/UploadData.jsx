@@ -1,7 +1,11 @@
 import { useState, useCallback } from "react";
 
+const API = "http://localhost:5000";
+
+const riskColor = (l) => l === "High" ? "#E24B4A" : l === "Medium" ? "#EF9F27" : "#3B9B5E";
+
 function ScoreCircle({ score, level }) {
-  const color = level === "High" ? "#E24B4A" : level === "Medium" ? "#EF9F27" : "#3B9B5E";
+  const color = riskColor(level);
   const r = 36, circ = 2 * Math.PI * r;
   return (
     <svg width="88" height="88" viewBox="0 0 88 88">
@@ -16,6 +20,84 @@ function ScoreCircle({ score, level }) {
   );
 }
 
+function AIPanel({ result }) {
+  const [ai, setAi] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const fetch_ai = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/ai-suggest`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vitals: result.vitals, issues: result.issues,
+          risk_score: result.risk_score, risk_level: result.risk_level,
+          component_scores: result.component_scores, smart_alerts: result.smart_alerts
+        })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setAi(data);
+      setDone(true);
+    } catch (e) {
+      setAi({ error: "AI service unavailable. Check backend is running." });
+      setDone(true);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="detail-block ai-panel">
+      {/* <div className="detail-label">🧠 AI-Based Explanation & Suggestions</div>
+      {!done && !loading && (
+        <button className="btn-ai" onClick={fetch_ai}>Get AI Analysis →</button>
+      )}
+      {loading && (
+        <div className="ai-loading">
+          <span className="ai-spinner" /> Generating clinical analysis…
+        </div>
+      )} */}
+      {ai && !ai.error && (
+        <div className="ai-content">
+          {/* Explanation */}
+          <div className="ai-section">
+            <div className="ai-section-label">🔍 Clinical Explanation</div>
+            <p className="ai-text">{ai.explanation}</p>
+          </div>
+
+          {/* Smart alert from AI */}
+          {ai.smart_alert_summary && ai.smart_alert_summary !== "null" && (
+            <div className="ai-alert-box">
+              <span className="ai-alert-icon">⚠️</span>
+              <p className="ai-text">{ai.smart_alert_summary}</p>
+            </div>
+          )}
+
+          {/* Suggestions */}
+          <div className="ai-section">
+            <div className="ai-section-label">💊 Personalized Suggestions</div>
+            {ai.suggestions?.map((s, i) => (
+              <div key={i} className="ai-suggestion-item">
+                <span className="sug-num">{i + 1}</span>
+                <span>{s}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* What-if insight */}
+          {ai.what_if_insight && (
+            <div className="ai-insight-box">
+              <span>🎯 </span>{ai.what_if_insight}
+            </div>
+          )}
+        </div>
+      )}
+      {ai?.error && <div className="ai-error">{ai.error}</div>}
+    </div>
+  );
+}
+
 function PatientCard({ result }) {
   const [open, setOpen] = useState(false);
   if (result.error) {
@@ -26,7 +108,16 @@ function PatientCard({ result }) {
       </div>
     );
   }
-  const { risk_score, risk_level, risk_color, component_scores, issues, suggestions, vitals } = result;
+  const { risk_score, risk_level, risk_color, component_scores, issues, suggestions, vitals, smart_alerts } = result;
+
+  const total_weight = 100;
+  const contributions = [
+    { name: "Heart Rate", weight: 30, score: component_scores.heart_rate.score, key: "heart_rate" },
+    { name: "SpO₂",       weight: 30, score: component_scores.spo2.score,       key: "spo2" },
+    { name: "Temperature",weight: 20, score: component_scores.temperature.score, key: "temperature" },
+    { name: "Lifestyle",  weight: 20, score: component_scores.lifestyle.score,   key: "lifestyle" },
+  ];
+
   return (
     <div className="p-card" style={{ borderLeft: `4px solid ${risk_color}` }}>
       <div className="p-card-top" onClick={() => setOpen(!open)}>
@@ -38,34 +129,53 @@ function PatientCard({ result }) {
             {vitals?.spo2        && <span className="vpill">🫁 {vitals.spo2}%</span>}
             {vitals?.temperature && <span className="vpill">🌡️ {vitals.temperature}°C</span>}
             {vitals?.bmi         && <span className="vpill">⚖️ BMI {vitals.bmi}</span>}
+            {smart_alerts?.length > 0 && (
+              <span className="vpill alert-pill">⚠️ {smart_alerts.length} alert{smart_alerts.length > 1 ? "s" : ""}</span>
+            )}
           </div>
         </div>
         <div className="p-right">
-          <span className="risk-badge" style={{ background: risk_color+"22", color: risk_color }}>
-            {risk_level} Risk
-          </span>
+          <span className="risk-badge" style={{ color: risk_color, background: risk_color + "22" }}>{risk_level} Risk</span>
           <ScoreCircle score={risk_score} level={risk_level} />
           <span className="expand-caret">{open ? "▲" : "▼"}</span>
         </div>
       </div>
 
       {open && (
-        <div className="p-detail">
-          {/* Component bars */}
+        <div className="p-detail-v3">
+
+          {/* ── FEATURE 3: Smart Alerts ── */}
+          {smart_alerts?.length > 0 && (
+            <div className="detail-full">
+              <div className="detail-label">⚠️ Smart Alerts — Combination Patterns</div>
+              {smart_alerts.map((a, i) => (
+                <div key={i} className="alert-strip" style={{ borderColor: a.color, background: a.color + "10" }}>
+                  <span className="alert-type" style={{ color: a.color }}>{a.type}</span>
+                  <p className="alert-msg">{a.message}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── FEATURE 4: Risk Breakdown ── */}
           <div className="detail-block">
-            <div className="detail-label">Score Breakdown</div>
-            {[
-              ["Heart Rate", component_scores.heart_rate],
-              ["SpO₂",       component_scores.spo2],
-              ["Temperature",component_scores.temperature],
-              ["Lifestyle",  component_scores.lifestyle],
-            ].map(([name, cs]) => {
-              const c = cs.level==="High"?"#E24B4A":cs.level==="Medium"?"#EF9F27":"#3B9B5E";
+            <div className="detail-label">📊 Risk Breakdown (Explainable AI)</div>
+            {contributions.map(c => {
+              const contribution = Math.round((c.weight / 100) * c.score);
+              const col = riskColor(component_scores[c.key].level);
               return (
-                <div key={name} className="bar-row">
-                  <span className="bar-name">{name}</span>
-                  <div className="bar-track"><div className="bar-fill" style={{width:`${cs.score}%`,background:c}} /></div>
-                  <span className="bar-num" style={{color:c}}>{cs.score}</span>
+                <div key={c.key} className="breakdown-row">
+                  <div className="bd-top">
+                    <span className="bd-name">{c.name}</span>
+                    <span className="bd-weight">Weight: {c.weight}%</span>
+                    <span className="bd-contrib" style={{ color: col }}>Contributes {contribution} pts</span>
+                  </div>
+                  <div className="bar-row">
+                    <div className="bar-track">
+                      <div className="bar-fill" style={{ width: `${c.score}%`, background: col }} />
+                    </div>
+                    <span className="bar-num" style={{ color: col }}>{c.score}</span>
+                  </div>
                 </div>
               );
             })}
@@ -76,12 +186,12 @@ function PatientCard({ result }) {
 
           {/* Issues */}
           <div className="detail-block">
-            <div className="detail-label">Issues Detected</div>
+            <div className="detail-label">🔎 Issues Detected</div>
             {issues.map((iss, i) => {
-              const c = iss.level==="High"?"#E24B4A":iss.level==="Medium"?"#EF9F27":"#3B9B5E";
+              const c = riskColor(iss.level);
               return (
                 <div key={i} className="issue-row">
-                  <span className="iss-dot" style={{background:c}} />
+                  <span className="iss-dot" style={{ background: c }} />
                   <span className="iss-label">{iss.label}:</span>
                   <span className="iss-note">{iss.note}</span>
                 </div>
@@ -89,25 +199,23 @@ function PatientCard({ result }) {
             })}
           </div>
 
-          {/* Suggestions */}
-          <div className="detail-block sug-block">
-            <div className="detail-label">💡 Suggestions</div>
-            {suggestions.map((s, i) => <div key={i} className="sug-item">{s}</div>)}
-          </div>
+          {/* ── FEATURE 2: AI Explanation ── */}
+          <AIPanel result={result} />
+
         </div>
       )}
     </div>
   );
 }
 
-export default function UploadData({ API, onDone }) {
+export default function UploadData({ API: _API, onDone }) {
   const [dragging, setDragging] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [results, setResults] = useState(null);
-  const [summary, setSummary] = useState(null);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState(null);
+  const [results,  setResults]  = useState(null);
+  const [summary,  setSummary]  = useState(null);
   const [filename, setFilename] = useState(null);
-  const [filter, setFilter] = useState("All");
+  const [filter,   setFilter]   = useState("All");
 
   const handleFile = useCallback(async (file) => {
     setLoading(true); setError(null); setResults(null);
@@ -117,13 +225,13 @@ export default function UploadData({ API, onDone }) {
     try {
       const res = await fetch(`${API}/analyze`, { method: "POST", body: fd });
       const data = await res.json();
-      if (!res.ok) { setError(data.error); }
+      if (!res.ok) setError(data.error);
       else { setResults(data.results); setSummary(data.summary); }
     } catch (e) {
       setError("Cannot connect to backend. Is Flask running on port 5000?");
     }
     setLoading(false);
-  }, [API]);
+  }, []);
 
   const filtered = results?.filter(r => filter === "All" || r.risk_level === filter);
 
@@ -133,27 +241,32 @@ export default function UploadData({ API, onDone }) {
         <div className="page-header">
           <div>
             <h1 className="page-title">Analysis Results</h1>
-            <p className="page-sub">📁 {filename} — {results.length} patients analyzed · saved to MongoDB</p>
+            <p className="page-sub">📁 {filename} — {results.length} patients · saved to MongoDB · click a card to expand</p>
           </div>
-          <div style={{display:"flex",gap:"10px"}}>
+          <div style={{ display: "flex", gap: 10 }}>
             <button className="btn-secondary" onClick={() => { setResults(null); setSummary(null); }}>Upload Another</button>
-            <button className="btn-primary" onClick={() => onDone(results)}>Go to Dashboard →</button>
+            <button className="btn-primary" onClick={() => onDone(results)}>→ Dashboard</button>
           </div>
         </div>
 
-        {/* Summary cards */}
         <div className="stats-grid">
-          <div className="stat-card"><div className="stat-icon" style={{background:"#6366F122",color:"#6366F1"}}>👥</div><div><div className="stat-value" style={{color:"#6366F1"}}>{summary.total}</div><div className="stat-label">Total</div></div></div>
-          <div className="stat-card"><div className="stat-icon" style={{background:"#E24B4A22",color:"#E24B4A"}}>⚠️</div><div><div className="stat-value" style={{color:"#E24B4A"}}>{summary.high_risk}</div><div className="stat-label">High Risk</div></div></div>
-          <div className="stat-card"><div className="stat-icon" style={{background:"#EF9F2722",color:"#EF9F27"}}>⚡</div><div><div className="stat-value" style={{color:"#EF9F27"}}>{summary.medium_risk}</div><div className="stat-label">Medium Risk</div></div></div>
-          <div className="stat-card"><div className="stat-icon" style={{background:"#3B9B5E22",color:"#3B9B5E"}}>✅</div><div><div className="stat-value" style={{color:"#3B9B5E"}}>{summary.low_risk}</div><div className="stat-label">Low Risk</div></div></div>
+          {[
+            { value: summary.total,       label: "Total",      color: "#6366F1", icon: "👥" },
+            { value: summary.high_risk,   label: "High Risk",  color: "#E24B4A", icon: "⚠️" },
+            { value: summary.medium_risk, label: "Medium",     color: "#EF9F27", icon: "⚡" },
+            { value: summary.low_risk,    label: "Low Risk",   color: "#3B9B5E", icon: "✅" },
+          ].map((s, i) => (
+            <div key={i} className="stat-card">
+              <div className="stat-icon" style={{ background: s.color + "22", color: s.color }}>{s.icon}</div>
+              <div><div className="stat-value" style={{ color: s.color }}>{s.value}</div><div className="stat-label">{s.label}</div></div>
+            </div>
+          ))}
         </div>
 
-        {/* Filter */}
         <div className="filter-bar">
-          {["All","High","Medium","Low"].map(f => (
-            <button key={f} className={`filter-tab ${filter===f?"active":""}`} onClick={() => setFilter(f)}>
-              {f === "All" ? `All (${results.length})` : `${f} (${summary[f.toLowerCase()+"_risk"]})`}
+          {["All", "High", "Medium", "Low"].map(f => (
+            <button key={f} className={`filter-tab ${filter === f ? "active" : ""}`} onClick={() => setFilter(f)}>
+              {f === "All" ? `All (${results.length})` : `${f} (${summary[f.toLowerCase() + "_risk"]})`}
             </button>
           ))}
         </div>
@@ -170,7 +283,7 @@ export default function UploadData({ API, onDone }) {
       <div className="page-header">
         <div>
           <h1 className="page-title">Upload Data</h1>
-          <p className="page-sub">Upload a patient health data file to analyze</p>
+          <p className="page-sub">Upload a patient health data file for AI-powered risk analysis</p>
         </div>
       </div>
 
@@ -179,8 +292,8 @@ export default function UploadData({ API, onDone }) {
           <div className="spinner" />
           <div className="loading-title">Analyzing {filename}…</div>
           <div className="loading-steps">
-            {["Reading file","Extracting fields","Scoring risk","Saving to MongoDB"].map((s,i) => (
-              <span key={i} className="ls active">{s}{i<3&&<span className="ls-arr"> → </span>}</span>
+            {["Reading file", "Extracting fields", "Scoring risk", "Smart alerts", "Saving to MongoDB"].map((s, i) => (
+              <span key={i} className="ls active">{s}{i < 4 && <span className="ls-arr"> → </span>}</span>
             ))}
           </div>
         </div>
@@ -190,14 +303,15 @@ export default function UploadData({ API, onDone }) {
             className={`dropzone ${dragging ? "drag-over" : ""}`}
             onDragOver={e => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
-            onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if(f) handleFile(f); }}
+            onDrop={e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
           >
             <div className="drop-icon-big">📂</div>
             <div className="drop-title">Drop your health data file here</div>
             <div className="drop-sub">Supports CSV, JSON, PDF, TXT</div>
-            <label className="btn-primary" style={{cursor:"pointer",marginTop:"1rem"}}>
+            <label className="btn-primary" style={{ cursor: "pointer", marginTop: "1rem" }}>
               Choose File
-              <input type="file" accept=".csv,.json,.pdf,.txt" style={{display:"none"}} onChange={e => { if(e.target.files[0]) handleFile(e.target.files[0]); }} />
+              <input type="file" accept=".csv,.json,.pdf,.txt" style={{ display: "none" }}
+                onChange={e => { if (e.target.files[0]) handleFile(e.target.files[0]); }} />
             </label>
           </div>
 
@@ -205,9 +319,9 @@ export default function UploadData({ API, onDone }) {
 
           <div className="format-grid">
             {[
-              { icon:"📄", name:"CSV",      desc:"Columns: patient_id, age, heart_rate, spo2, temperature, activity_level, smoking, alcohol, bmi" },
-              { icon:"🗂️",  name:"JSON",     desc:'Array of patient objects, or { "patients": [...] }' },
-              { icon:"📋", name:"PDF / TXT", desc:"Free-text health report — fields extracted automatically via pattern matching" },
+              { icon: "📄", name: "CSV", desc: "Columns: patient_id, age, heart_rate, spo2, temperature, activity_level, smoking, alcohol, bmi" },
+              { icon: "🗂️", name: "JSON", desc: 'Array of patient objects or { "patients": [...] }' },
+              { icon: "📋", name: "PDF / TXT", desc: "Free-text health report — fields extracted automatically" },
             ].map(f => (
               <div key={f.name} className="format-card">
                 <div className="format-icon">{f.icon}</div>
@@ -218,7 +332,7 @@ export default function UploadData({ API, onDone }) {
           </div>
 
           <div className="sample-section">
-            <div className="detail-label">Sample CSV row</div>
+            <div className="detail-label">Sample CSV</div>
             <pre className="code-box">{`patient_id,name,age,heart_rate,spo2,temperature,activity_level,smoking,alcohol,bmi
 P001,Arjun Sharma,45,115,93,38.3,sedentary,regular,occasional,28.5
 P002,Priya Nair,32,72,98,36.8,active,no,no,22.1`}</pre>
