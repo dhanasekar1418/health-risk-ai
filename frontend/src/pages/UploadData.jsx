@@ -49,7 +49,7 @@ function AIPanel({ result }) {
 
   return (
     <div className="detail-block ai-panel">
-      {/* <div className="detail-label">🧠 AI-Based Explanation & Suggestions</div>
+      <div className="detail-label">🧠 AI-Based Explanation & Suggestions</div>
       {!done && !loading && (
         <button className="btn-ai" onClick={fetch_ai}>Get AI Analysis →</button>
       )}
@@ -57,7 +57,7 @@ function AIPanel({ result }) {
         <div className="ai-loading">
           <span className="ai-spinner" /> Generating clinical analysis…
         </div>
-      )} */}
+      )}
       {ai && !ai.error && (
         <div className="ai-content">
           {/* Explanation */}
